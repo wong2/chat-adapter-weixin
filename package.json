@@ -7,7 +7,7 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "weixin-chat-adapter": "./dist/cli.js"
+    "weixin-chat-adapter": "dist/cli.js"
   },
   "exports": {
     ".": {
