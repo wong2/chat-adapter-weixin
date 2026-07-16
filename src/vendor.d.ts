@@ -10,4 +10,6 @@ declare module "silk-wasm" {
     input: Uint8Array | Buffer,
     sampleRate: number,
   ): Promise<{ data: Uint8Array; duration: number }>;
+  export function getDuration(input: Uint8Array | Buffer, frameMs?: number): number;
+  export function isSilk(input: Uint8Array | Buffer): boolean;
 }

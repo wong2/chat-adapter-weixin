@@ -250,6 +250,77 @@ describe("WeixinAdapter integration", () => {
     await chat.shutdown();
   });
 
+  it("uploads SILK audio as a voice message", async () => {
+    const sent: SendMessageReq[] = [];
+    const protocol = makeProtocol({
+      sendMessage: vi.fn(async (body: SendMessageReq) => {
+        sent.push(body);
+      }),
+    });
+    const fetchFn = vi.fn(async () => {
+      const headers = new Headers({ "x-encrypted-param": "download-param" });
+      return new Response("", { status: 200, headers });
+    });
+    const { adapter, chat } = await createInitializedAdapter(protocol, fetchFn);
+    const threadId = adapter.encodeThreadId({ accountId: "acc@im.bot", userId: "u@im.wechat" });
+    const silk = Buffer.concat([Buffer.from("#!SILK_V3"), Buffer.from([1, 0, 0])]);
+
+    await adapter.postMessage(threadId, {
+      raw: "",
+      attachments: [{ type: "audio", data: silk, name: "voice.silk", mimeType: "audio/silk" }],
+    });
+
+    expect(protocol.getUploadUrl).toHaveBeenCalledWith(
+      expect.objectContaining({ media_type: 4, rawsize: silk.length }),
+    );
+    expect(sent[0].msg?.item_list?.[0]).toEqual(
+      expect.objectContaining({
+        type: MessageItemType.VOICE,
+        voice_item: expect.objectContaining({
+          encode_type: 6,
+          bits_per_sample: 16,
+          sample_rate: 24_000,
+          playtime: 20,
+        }),
+      }),
+    );
+
+    await chat.shutdown();
+  });
+
+  it.each([
+    ["voice.wav", "audio/wav"],
+    ["voice.mp3", "audio/mpeg"],
+  ])("uploads non-SILK audio as a file (%s)", async (name, mimeType) => {
+    const sent: SendMessageReq[] = [];
+    const protocol = makeProtocol({
+      sendMessage: vi.fn(async (body: SendMessageReq) => {
+        sent.push(body);
+      }),
+    });
+    const fetchFn = vi.fn(async () => {
+      const headers = new Headers({ "x-encrypted-param": "download-param" });
+      return new Response("", { status: 200, headers });
+    });
+    const { adapter, chat } = await createInitializedAdapter(protocol, fetchFn);
+    const threadId = adapter.encodeThreadId({ accountId: "acc@im.bot", userId: "u@im.wechat" });
+
+    await adapter.postMessage(threadId, {
+      raw: "",
+      attachments: [{ type: "audio", data: Buffer.from("not silk"), name, mimeType }],
+    });
+
+    expect(protocol.getUploadUrl).toHaveBeenCalledWith(expect.objectContaining({ media_type: 3 }));
+    expect(sent[0].msg?.item_list?.[0]).toEqual(
+      expect.objectContaining({
+        type: MessageItemType.FILE,
+        file_item: expect.objectContaining({ file_name: name }),
+      }),
+    );
+
+    await chat.shutdown();
+  });
+
   it("uses configured fetchFn for URL-only attachment uploads", async () => {
     const sent: SendMessageReq[] = [];
     const protocol = makeProtocol({
