@@ -37,7 +37,7 @@ describe("uploadedToMessageItem aes_key encoding", () => {
 
   it("encodes image aes_key as base64 of the 32-char hex string", () => {
     const item = uploadedToMessageItem({ uploaded, kind: "image" });
-    const aesKey = item.image_item!.media.aes_key!;
+    const aesKey = item.image_item!.media!.aes_key!;
     expect(parseAesKey(aesKey)).toEqual(Buffer.from(keyHex, "hex"));
     // All media types now use base64(hex string) — consistent with WeChat client expectations.
     expect(Buffer.from(aesKey, "base64").toString("ascii")).toBe(keyHex);
@@ -45,7 +45,7 @@ describe("uploadedToMessageItem aes_key encoding", () => {
 
   it("encodes file aes_key as base64 of the 32-char hex string", () => {
     const item = uploadedToMessageItem({ uploaded, kind: "file", fileName: "doc.pdf" });
-    const aesKey = item.file_item!.media.aes_key!;
+    const aesKey = item.file_item!.media!.aes_key!;
     expect(parseAesKey(aesKey)).toEqual(Buffer.from(keyHex, "hex"));
     // Wire format the WeChat client expects for files: base64 of the ASCII hex.
     expect(Buffer.from(aesKey, "base64").toString("ascii")).toBe(keyHex);
