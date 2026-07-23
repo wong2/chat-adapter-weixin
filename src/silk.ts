@@ -8,7 +8,7 @@
  */
 
 /** Default sample rate for Weixin voice messages. */
-const SILK_SAMPLE_RATE = 24_000;
+export const SILK_SAMPLE_RATE = 24_000;
 
 /** Wrap raw pcm_s16le bytes in a WAV container (mono, 16-bit little-endian). */
 function pcmBytesToWav(pcm: Uint8Array, sampleRate: number): Buffer {
@@ -56,6 +56,19 @@ export async function silkToWav(silkBuf: Buffer): Promise<Buffer | null> {
     const { decode } = await import("silk-wasm");
     const result = await decode(silkBuf, SILK_SAMPLE_RATE);
     return pcmBytesToWav(result.data, SILK_SAMPLE_RATE);
+  } catch {
+    return null;
+  }
+}
+
+/** Return outbound voice metadata for valid SILK data, or null to fall back to a file. */
+export async function silkVoiceMetadata(
+  audioBuf: Buffer,
+): Promise<{ duration: number } | null> {
+  try {
+    const { getDuration, isSilk } = await import("silk-wasm");
+    if (!isSilk(audioBuf)) return null;
+    return { duration: getDuration(audioBuf) };
   } catch {
     return null;
   }

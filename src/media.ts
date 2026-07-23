@@ -12,7 +12,7 @@ import {
   type WeixinFetch,
 } from "./types.js";
 import type { WeixinProtocolClient } from "./protocol.js";
-import { silkToWav } from "./silk.js";
+import { SILK_SAMPLE_RATE, silkToWav, silkVoiceMetadata } from "./silk.js";
 
 export function aesEcbPaddedSize(plaintextSize: number): number {
   return Math.ceil((plaintextSize + 1) / 16) * 16;
@@ -165,16 +165,16 @@ export function buildCdnDownloadUrl(encryptedQueryParam: string, cdnBaseUrl: str
 
 export function uploadedToMessageItem(params: {
   uploaded: UploadedFileInfo;
-  kind: "image" | "video" | "file";
+  kind: "image" | "video" | "voice" | "file";
   fileName?: string;
+  duration?: number;
 }): MessageItem {
   // aes_key wire format: base64(hex string) — consistent across all media types.
   // The hex string is 32 chars (16-byte key encoded as hex), then base64-encoded.
   // This matches the wechatbot reference implementation and WeChat client expectations.
-  const aesKeyForKind = Buffer.from(params.uploaded.aeskey, "ascii").toString("base64");
   const media: CDNMedia = {
     encrypt_query_param: params.uploaded.downloadEncryptedQueryParam,
-    aes_key: aesKeyForKind,
+    aes_key: Buffer.from(params.uploaded.aeskey, "ascii").toString("base64"),
     encrypt_type: 1,
   };
   if (params.kind === "image") {
@@ -195,6 +195,18 @@ export function uploadedToMessageItem(params: {
       },
     };
   }
+  if (params.kind === "voice") {
+    return {
+      type: MessageItemType.VOICE,
+      voice_item: {
+        media,
+        encode_type: 6,
+        bits_per_sample: 16,
+        sample_rate: SILK_SAMPLE_RATE,
+        playtime: params.duration,
+      },
+    };
+  }
   return {
     type: MessageItemType.FILE,
     file_item: {
@@ -205,18 +217,30 @@ export function uploadedToMessageItem(params: {
   };
 }
 
-export function inferUploadKind(
+export async function inferUploadKind(
   mimeType: string | undefined,
   type?: Attachment["type"],
-): {
-  kind: "image" | "video" | "file";
+  buffer?: Buffer,
+): Promise<{
+  kind: "image" | "video" | "voice" | "file";
   mediaType: (typeof UploadMediaType)[keyof typeof UploadMediaType];
-} {
+  duration?: number;
+}> {
   if (type === "image" || mimeType?.startsWith("image/")) {
     return { kind: "image", mediaType: UploadMediaType.IMAGE };
   }
   if (type === "video" || mimeType?.startsWith("video/")) {
     return { kind: "video", mediaType: UploadMediaType.VIDEO };
+  }
+  if ((type === "audio" || mimeType?.startsWith("audio/")) && buffer) {
+    const voice = await silkVoiceMetadata(buffer);
+    if (voice) {
+      return {
+        kind: "voice",
+        mediaType: UploadMediaType.VOICE,
+        duration: voice.duration,
+      };
+    }
   }
   return { kind: "file", mediaType: UploadMediaType.FILE };
 }

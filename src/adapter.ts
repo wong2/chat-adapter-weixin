@@ -371,7 +371,7 @@ export class WeixinAdapter implements Adapter<WeixinThreadId, WeixinMessage> {
     mimeType?: string;
   }): Promise<MessageItem> {
     const buffer = await fileUploadToBuffer(file);
-    const inferred = inferUploadKind(file.mimeType);
+    const inferred = await inferUploadKind(file.mimeType, undefined, buffer);
     const uploaded = await uploadBufferToWeixin({
       protocol: this.protocol,
       fetchFn: this.fetchFn,
@@ -384,12 +384,13 @@ export class WeixinAdapter implements Adapter<WeixinThreadId, WeixinMessage> {
       uploaded,
       kind: inferred.kind,
       fileName: file.filename,
+      duration: inferred.duration,
     });
   }
 
   private async attachmentToMessageItem(userId: string, attachment: Attachment): Promise<MessageItem> {
     const buffer = await attachmentToBuffer(attachment, this.fetchFn);
-    const inferred = inferUploadKind(attachment.mimeType, attachment.type);
+    const inferred = await inferUploadKind(attachment.mimeType, attachment.type, buffer);
     const uploaded = await uploadBufferToWeixin({
       protocol: this.protocol,
       fetchFn: this.fetchFn,
@@ -402,6 +403,7 @@ export class WeixinAdapter implements Adapter<WeixinThreadId, WeixinMessage> {
       uploaded,
       kind: inferred.kind,
       fileName: attachment.name,
+      duration: inferred.duration,
     });
   }
 

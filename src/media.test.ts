@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   attachmentFromMessageItem,
   encryptAesEcb,
+  inferUploadKind,
   parseAesKey,
   uploadedToMessageItem,
 } from "./media.js";
@@ -49,6 +50,41 @@ describe("uploadedToMessageItem aes_key encoding", () => {
     expect(parseAesKey(aesKey)).toEqual(Buffer.from(keyHex, "hex"));
     // Wire format the WeChat client expects for files: base64 of the ASCII hex.
     expect(Buffer.from(aesKey, "base64").toString("ascii")).toBe(keyHex);
+  });
+
+  it("creates voice metadata for an uploaded SILK file", () => {
+    const item = uploadedToMessageItem({ uploaded, kind: "voice", duration: 40 });
+    expect(item).toEqual({
+      type: MessageItemType.VOICE,
+      voice_item: {
+        media: {
+          encrypt_query_param: "dl-param",
+          aes_key: Buffer.from(keyHex, "ascii").toString("base64"),
+          encrypt_type: 1,
+        },
+        encode_type: 6,
+        bits_per_sample: 16,
+        sample_rate: 24_000,
+        playtime: 40,
+      },
+    });
+  });
+});
+
+describe("inferUploadKind", () => {
+  it("maps SILK audio attachments to Weixin voice uploads", async () => {
+    const silk = Buffer.concat([Buffer.from("#!SILK_V3"), Buffer.from([1, 0, 0])]);
+    await expect(inferUploadKind("audio/silk", "audio", silk)).resolves.toEqual({
+      kind: "voice",
+      mediaType: 4,
+      duration: 20,
+    });
+  });
+
+  it("keeps non-SILK audio as a file attachment", async () => {
+    await expect(
+      inferUploadKind("audio/mpeg", "audio", Buffer.from("not silk")),
+    ).resolves.toEqual({ kind: "file", mediaType: 3 });
   });
 });
 
